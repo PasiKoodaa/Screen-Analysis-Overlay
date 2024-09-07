@@ -2,6 +2,11 @@
 
 This application provides a transparent overlay for real-time image analysis using KoboldCPP. It captures screenshots of a selected region or the entire screen and analyzes them using AI, providing descriptions and alerts based on user-defined conditions.
 
+<video width="320" height="240" controls>
+  <source src="MuskElonCats.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
 ## Features
 
 - Transparent overlay that stays on top of other windows
