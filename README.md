@@ -2,10 +2,11 @@
 
 This application provides a transparent overlay for real-time image analysis using KoboldCPP. It captures screenshots of a selected region or the entire screen and analyzes them using AI, providing descriptions and alerts based on user-defined conditions.
 
-<video width="320" height="240" controls>
-  <source src="MuskElonCats.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+
+
+https://github.com/user-attachments/assets/acecda32-c43c-41d2-9b8c-a335babe92bb
+
+
 
 ## Features
 
@@ -59,6 +60,7 @@ This application provides a transparent overlay for real-time image analysis usi
 3. The overlay will continuously capture and analyze the selected region, displaying results in real-time.
 
 ## Configuration
+![kobo](https://github.com/user-attachments/assets/c8781ff4-b7c5-47a4-b72e-84da4a5e3ea2)
 
 - Adjust the `KOBOLDCPP_URL` variable in the script if your KoboldCPP server is running on a different address.
 - Modify the `system_prompt` variable to change the default analysis prompt.
