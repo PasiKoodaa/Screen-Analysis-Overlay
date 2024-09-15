@@ -413,7 +413,7 @@ class TransparentOverlay(QMainWindow):
 
     def set_alert_prompt(self):
         prompt, ok = QInputDialog.getText(self, 'Set Alert Prompt', 
-                                          'Enter alert condition (e.g., "Alert when you see a robbery"):')
+                                          'Enter alert condition (e.g., "Can you see cats?"):')
         if ok and prompt:
             self.alert_prompt = prompt
             self.alert_active = True
