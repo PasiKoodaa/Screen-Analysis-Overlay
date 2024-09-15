@@ -1,4 +1,4 @@
-# Image Analysis Overlay
+# Screen Analysis Overlay
 
 This application provides a transparent overlay for real-time image analysis using KoboldCPP. It captures screenshots of a selected region or the entire screen and analyzes them using AI, providing descriptions and alerts based on user-defined conditions.
 
