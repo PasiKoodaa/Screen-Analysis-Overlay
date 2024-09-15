@@ -12,7 +12,7 @@ https://github.com/user-attachments/assets/acecda32-c43c-41d2-9b8c-a335babe92bb
 
 - Transparent overlay that stays on top of other windows
 - Customizable capture region selection
-- Real-time image analysis using KoboldCPP
+- Real-time screen analysis using KoboldCPP
 - Customizable system prompts for analysis
 - Pause/Resume functionality
 - Alert system for specific conditions
