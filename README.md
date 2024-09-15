@@ -30,6 +30,7 @@ https://github.com/user-attachments/assets/033eb996-5ead-43f1-a736-633808dc284f
 - pyautogui
 - Pillow
 - requests
+- pywin32
 
 ## Installation
 
