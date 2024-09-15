@@ -21,7 +21,7 @@ https://github.com/user-attachments/assets/acecda32-c43c-41d2-9b8c-a335babe92bb
 
 ## Requirements
 
-- Python 3.7+
+- Python 3.8+
 - PyQt5
 - pyautogui
 - Pillow
