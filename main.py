@@ -1,7 +1,7 @@
 import sys
 import time
 import pyautogui
-from PIL import Image
+from PIL import Image, ImageGrab
 import io
 import requests
 import base64
@@ -14,6 +14,10 @@ from PyQt5.QtCore import Qt, QTimer, QPoint, QRect, QThread, QObject, pyqtSignal
 from PyQt5.QtGui import QFont, QPainter, QPen, QPixmap, QCursor
 import json
 from queue import Queue
+import win32gui
+import win32ui
+import win32con
+import win32api
 
 # KoboldCPP server settings
 KOBOLDCPP_URL = "http://localhost:5001/api/v1/generate"
@@ -61,18 +65,27 @@ class AnalysisWorker(QObject):
     def run_analysis(self):
         while self.running:
             try:
-                if self.overlay and not self.overlay.is_paused:
+                if self.overlay and not self.overlay.is_paused and not self.overlay.analysis_paused:
                     self.request_screenshot.emit()
                     # Wait for the screenshot to be taken
-                    while not hasattr(self.overlay, 'current_image') or self.overlay.current_image is None:
+                    timeout = 5  # 5 seconds timeout
+                    start_time = time.time()
+                    while (not hasattr(self.overlay, 'current_image') or 
+                           self.overlay.current_image is None or 
+                           self.overlay.current_image.getbbox() is None):
+                        if time.time() - start_time > timeout:
+                            logging.warning("Timeout waiting for valid screenshot")
+                            break
                         time.sleep(0.1)
 
-                    if self.overlay.current_image:
+                    if self.overlay.current_image and self.overlay.current_image.getbbox() is not None:
                         description = analyze_image_with_koboldcpp(self.overlay.current_image, self.overlay.system_prompt)
                         self.analysis_complete.emit(description)
                         
                         if self.overlay.alert_active:
                             self.check_alert_condition(self.overlay.current_image, description)
+                    else:
+                        logging.warning("Skipping analysis due to invalid screenshot")
                 
                 # Process any pending UI updates
                 while not self.queue.empty():
@@ -83,6 +96,7 @@ class AnalysisWorker(QObject):
                 self.error_occurred.emit(str(e))
             
             time.sleep(5)
+
 
     def check_alert_condition(self, image, analysis_text):
         check_prompt = f"Based on the image and the following analysis, determine if the condition '{self.overlay.alert_prompt}' is met. Respond with only 'Yes' or 'No'.\n\nImage analysis: {analysis_text}"
@@ -110,7 +124,7 @@ def analyze_image_with_koboldcpp(image, prompt):
     payload = {
         "n": 1,
         "max_context_length": 8192,
-        "max_length": 200,
+        "max_length": 100,
         "rep_pen": 1.15,
         "temperature": 0.3,
         "top_p": 1,
@@ -120,7 +134,7 @@ def analyze_image_with_koboldcpp(image, prompt):
         "tfs": 1,
         "rep_pen_range": 320,
         "rep_pen_slope": 0.7,
-        "sampler_order": [6,0,1,3,4,2,5],
+        "sampler_order": [6,0,1,3,4,2,5], #[6, 5, 0, 1, 3, 4, 2],
         "memory": "<|start_header_id|>system<|end_header_id|>\n\n <｜begin_of_sentence｜>{prompt}\n\n",
         "trim_stop": True,
         "images": [image_base64],
@@ -165,6 +179,10 @@ class TransparentOverlay(QMainWindow):
         self.alert_active = False
         self.current_image = None
         self.analysis_results = []
+        self.is_selecting_region = False  # New flag to track region selection state
+        self.analysis_paused = False  # New flag to control analysis
+        self.start_point = None
+        self.end_point = None
 
         # Create a directory for saved screenshots
         self.screenshot_dir = "saved_screenshots"
@@ -181,6 +199,7 @@ class TransparentOverlay(QMainWindow):
         
         self.analysis_worker.set_overlay(self)
         self.analysis_thread.start()
+
 
 
         
@@ -265,6 +284,10 @@ class TransparentOverlay(QMainWindow):
         self.pause_resume_button.setText(button_text)
         status = "paused" if self.is_paused else "resumed"
         self.update_text(f"Capture and analysis {status}")
+        
+        # Add this line to ensure region selection is reset when unpausing
+        if not self.is_paused:
+            self.is_selecting_region = False
     
     def save_results(self):
         if not self.analysis_results:
@@ -322,9 +345,11 @@ class TransparentOverlay(QMainWindow):
             QApplication.quit()
     
     def select_region(self):
+        self.is_selecting_region = True
+        self.analysis_paused = True
         self.hide()
-        self.is_capturing = True
-        self.capture_region = None
+        self.start_point = None
+        self.end_point = None
         QTimer.singleShot(100, self.start_region_selection)
     
     def start_region_selection(self):
@@ -342,27 +367,36 @@ class TransparentOverlay(QMainWindow):
         self.select_window.paintEvent = self.region_select_paint
     
     def region_select_press(self, event):
-        self.origin = event.pos()
-        self.current = QPoint(self.origin)
+        self.start_point = event.pos()
     
     def region_select_move(self, event):
-        if self.origin:
-            self.current = event.pos()
+        if self.start_point:
+            self.end_point = event.pos()
             self.select_window.update()
     
     def region_select_release(self, event):
-        self.current = event.pos()
-        self.capture_region = QRect(self.origin, self.current).normalized()
-        self.is_capturing = False
+        self.end_point = event.pos()
+        if self.start_point and self.end_point:
+            self.capture_region = QRect(self.start_point, self.end_point).normalized()
+            logging.info(f"Region selected: {self.capture_region}")
+            self.update_text(f"Region selected: {self.capture_region}")
+        self.is_selecting_region = False
+        self.analysis_paused = False
         self.select_window.close()
         self.show()
+        self.trigger_analysis()
+
+
+    def trigger_analysis(self):
+        if hasattr(self, 'analysis_worker'):
+            self.analysis_worker.request_screenshot.emit() 
     
     def region_select_paint(self, event):
-        if self.origin and self.current:
+        if self.start_point and self.end_point:
             painter = QPainter(self.select_window)
             painter.drawPixmap(self.select_window.rect(), self.original_screenshot)
             painter.setPen(QPen(Qt.red, 2, Qt.SolidLine))
-            painter.drawRect(QRect(self.origin, self.current).normalized())
+            painter.drawRect(QRect(self.start_point, self.end_point).normalized())
 
     def update_system_prompt(self, new_prompt):
         self.system_prompt = new_prompt
@@ -412,38 +446,66 @@ class TransparentOverlay(QMainWindow):
 
     @pyqtSlot()
     def take_screenshot(self):
-        self.hide()  # Hide the overlay
-        QApplication.processEvents()  # Ensure the hide takes effect
+        if self.is_selecting_region:
+            logging.info("Region selection in progress, skipping screenshot")
+            return
 
         try:
-            if self.capture_region and not self.is_capturing:
-                screenshot = pyautogui.screenshot(region=(
-                    self.capture_region.x(),
-                    self.capture_region.y(),
-                    self.capture_region.width(),
-                    self.capture_region.height()
-                ))
-            else:
-                screenshot = pyautogui.screenshot()
+            if self.capture_region and not self.is_selecting_region:
+                # Convert QRect to screen coordinates
+                screen = QApplication.primaryScreen()
+                screen_geometry = screen.geometry()
+                left = self.capture_region.left() + screen_geometry.left()
+                top = self.capture_region.top() + screen_geometry.top()
+                right = self.capture_region.right() + screen_geometry.left()
+                bottom = self.capture_region.bottom() + screen_geometry.top()
 
-            """ 
+                # Use win32 API for screen capture
+                hwin = win32gui.GetDesktopWindow()
+                width = right - left
+                height = bottom - top
+
+                hwindc = win32gui.GetWindowDC(hwin)
+                srcdc = win32ui.CreateDCFromHandle(hwindc)
+                memdc = srcdc.CreateCompatibleDC()
+                bmp = win32ui.CreateBitmap()
+                bmp.CreateCompatibleBitmap(srcdc, width, height)
+                memdc.SelectObject(bmp)
+                memdc.BitBlt((0, 0), (width, height), srcdc, (left, top), win32con.SRCCOPY)
+
+                signedIntsArray = bmp.GetBitmapBits(True)
+                img = Image.frombytes("RGB", (width, height), signedIntsArray, "raw", "BGRX")
+
+                # Free resources
+                win32gui.DeleteObject(bmp.GetHandle())
+                memdc.DeleteDC()
+                srcdc.DeleteDC()
+                win32gui.ReleaseDC(hwin, hwindc)
+
+                logging.info(f"Screenshot taken of selected region: {left},{top},{right},{bottom}")
+            else:
+                img = ImageGrab.grab()
+                logging.info("Full screen screenshot taken")
+
             # Save the full-size screenshot
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"screenshot_{timestamp}.png"
             filepath = os.path.join(self.screenshot_dir, filename)
-            screenshot.save(filepath)
+            img.save(filepath)
             logging.info(f"Screenshot saved: {filepath}")  
-            """
             
-            self.current_image = resize_image(screenshot, scale_factor=0.25)
+            self.current_image = resize_image(img, scale_factor=0.25)
+            
+            if self.current_image.getbbox() is None:
+                logging.warning("Captured image is empty")
+            else:
+                logging.info(f"Captured image size: {self.current_image.size}")
+
         except Exception as e:
             logging.error(f"Error taking screenshot: {str(e)}")
             self.current_image = None
         finally:
-            self.show()  # Show the overlay again
-            self.analysis_worker.screenshot_taken.emit()  # Signal that screenshot is taken
-
-
+            self.analysis_worker.screenshot_taken.emit()
 
 
 def capture_and_analyze(overlay):
@@ -467,14 +529,16 @@ def capture_and_analyze(overlay):
         time.sleep(5)
 
 
-
-        
-
 def main():
     app = QApplication(sys.argv)
     overlay = TransparentOverlay()
     overlay.show()
+
+    # Ensure the analysis worker is properly connected
+    overlay.analysis_worker.set_overlay(overlay)
+    
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
-    main()
+    main() 
+
