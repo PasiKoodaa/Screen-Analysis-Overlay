@@ -2,3 +2,4 @@ PyQt5==5.15.11
 PyAutoGUI==0.9.54
 Pillow==10.0.1
 requests==2.31.0
+pywin32==306
