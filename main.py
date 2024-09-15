@@ -110,7 +110,7 @@ def analyze_image_with_koboldcpp(image, prompt):
     payload = {
         "n": 1,
         "max_context_length": 8192,
-        "max_length": 1512,
+        "max_length": 200,
         "rep_pen": 1.15,
         "temperature": 0.3,
         "top_p": 1,
@@ -120,7 +120,7 @@ def analyze_image_with_koboldcpp(image, prompt):
         "tfs": 1,
         "rep_pen_range": 320,
         "rep_pen_slope": 0.7,
-        "sampler_order": [6, 5, 0, 1, 3, 4, 2],
+        "sampler_order": [6,0,1,3,4,2,5],
         "memory": "<|start_header_id|>system<|end_header_id|>\n\n <｜begin_of_sentence｜>{prompt}\n\n",
         "trim_stop": True,
         "images": [image_base64],
