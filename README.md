@@ -6,7 +6,10 @@ This application provides a transparent overlay for real-time image analysis usi
 
 
 
-https://github.com/user-attachments/assets/033eb996-5ead-43f1-a736-633808dc284f
+
+https://github.com/user-attachments/assets/53d47ec5-704a-4ff2-a21c-796f739a1c5e
+
+
 
 
 
@@ -23,6 +26,7 @@ https://github.com/user-attachments/assets/033eb996-5ead-43f1-a736-633808dc284f
 - Ability to save analysis results
 - Resizable overlay
 - Hide/show buttons by double clicking the overlay
+- Toggle overlay visibility during screenshots
 
 ## Requirements
 
@@ -41,8 +45,23 @@ https://github.com/user-attachments/assets/033eb996-5ead-43f1-a736-633808dc284f
    cd image-analysis-overlay
    ```
 
-2. Install the required dependencies:
+
+2. Set up a Python environment:
+
+   ### Option 1: Using Conda
+
    ```
+   conda create -n screen-analysis python=3.9
+   conda activate screen-analysis
+   conda install pip
+   pip install -r requirements.txt
+   ```
+
+   ### Option 2: Using venv and pip
+
+   ```
+   python -m venv venv
+   source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
    pip install -r requirements.txt
    ```
 
@@ -62,6 +81,7 @@ https://github.com/user-attachments/assets/033eb996-5ead-43f1-a736-633808dc284f
    - Set alert conditions
    - Save analysis results
    - Resize the overlay
+   - Toggle overlay visibility during screenshots
 
 3. The overlay will continuously capture and analyze the selected region, displaying results in real-time.
 
