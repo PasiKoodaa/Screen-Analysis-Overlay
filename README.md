@@ -22,6 +22,7 @@ https://github.com/user-attachments/assets/033eb996-5ead-43f1-a736-633808dc284f
 - Alert system for specific conditions
 - Ability to save analysis results
 - Resizable overlay
+- Hide/show buttons by double clicking the overlay
 
 ## Requirements
 
