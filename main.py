@@ -184,6 +184,7 @@ class TransparentOverlay(QMainWindow):
         self.start_point = None
         self.end_point = None
         self.buttons_visible = True  # New attribute to track button visibility
+        self.hide_during_screenshot = True  # New attribute to control overlay visibility during screenshots
 
         # Create a directory for saved screenshots
         self.screenshot_dir = "saved_screenshots"
@@ -209,7 +210,7 @@ class TransparentOverlay(QMainWindow):
         self.setAttribute(Qt.WA_TranslucentBackground)
         
         # Set a fixed initial size for the overlay
-        self.setFixedSize(1000, 800)
+        self.setFixedSize(1150, 800)
         
         central_widget = QWidget(self)
         self.setCentralWidget(central_widget)
@@ -230,16 +231,19 @@ class TransparentOverlay(QMainWindow):
         buttons = [
             ("Select Region", self.select_region),
             ("Update Prompt", self.show_prompt_dialog),
-            ("Pause/Continue", self.toggle_pause_resume),
+            ("Pause", self.toggle_pause_resume),
             ("Save Results", self.save_results),
             ("Set Alert", self.set_alert_prompt),
-            ("Resize Overlay", self.resize_overlay)
+            ("Resize Overlay", self.resize_overlay),
+            ("Toggle Hide", self.toggle_hide_during_screenshot)  # New button
         ]
         
         for text, slot in buttons:
             button = QPushButton(text, self)
             button.clicked.connect(slot)
             button.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+            if text == "Pause":
+                self.pause_resume_button = button  # Store reference to Pause/Resume button
             self.button_layout.addWidget(button)
         
         main_layout.addWidget(self.button_widget)
@@ -250,6 +254,7 @@ class TransparentOverlay(QMainWindow):
         
         self.show()
 
+
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.LeftButton:
             self.toggle_buttons_visibility()
@@ -259,9 +264,9 @@ class TransparentOverlay(QMainWindow):
         self.button_widget.setVisible(self.buttons_visible)
 
     def resize_overlay(self):
-        new_width, ok1 = QInputDialog.getInt(self, 'Resize Overlay', 'Enter new width:', self.width(), 100, 1000)
+        new_width, ok1 = QInputDialog.getInt(self, 'Resize Overlay', 'Enter new width:', self.width(), 100, 2000)
         if ok1:
-            new_height, ok2 = QInputDialog.getInt(self, 'Resize Overlay', 'Enter new height:', self.height(), 100, 1000)
+            new_height, ok2 = QInputDialog.getInt(self, 'Resize Overlay', 'Enter new height:', self.height(), 100, 2000)
             if ok2:
                 self.setFixedSize(new_width, new_height)
                 self.update_text(f"Overlay resized to {new_width}x{new_height}")
@@ -303,13 +308,17 @@ class TransparentOverlay(QMainWindow):
     def toggle_pause_resume(self):
         self.is_paused = not self.is_paused
         button_text = "Resume" if self.is_paused else "Pause"
-        # self.pause_resume_button.setText(button_text)
+        self.pause_resume_button.setText(button_text)  # Update button text
         status = "paused" if self.is_paused else "resumed"
         self.update_text(f"Capture and analysis {status}")
         
-        # Add this line to ensure region selection is reset when unpausing
         if not self.is_paused:
             self.is_selecting_region = False
+
+    def toggle_hide_during_screenshot(self):
+        self.hide_during_screenshot = not self.hide_during_screenshot
+        status = "hidden" if self.hide_during_screenshot else "visible"
+        self.update_text(f"Overlay will be {status} during screenshots")
     
     def save_results(self):
         if not self.analysis_results:
@@ -475,7 +484,8 @@ class TransparentOverlay(QMainWindow):
             logging.info("Region selection in progress, skipping screenshot")
             return
         
-        self.hide()  # Hide the overlay
+        if self.hide_during_screenshot:
+            self.hide()  # Hide the overlay only if hide_during_screenshot is True
         QApplication.processEvents()  # Ensure the hide takes effect
 
         try:
@@ -515,7 +525,9 @@ class TransparentOverlay(QMainWindow):
                 img = ImageGrab.grab()
                 logging.info("Full screen screenshot taken")
 
-            self.show()
+            if self.hide_during_screenshot:
+                self.show()  # Show the overlay immediately after taking the screenshot
+
             # Save the full-size screenshot
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"screenshot_{timestamp}.png"
@@ -534,6 +546,8 @@ class TransparentOverlay(QMainWindow):
             logging.error(f"Error taking screenshot: {str(e)}")
             self.current_image = None
         finally:
+            if self.hide_during_screenshot:
+                self.show()  # Show the overlay again only if it was hidden
             self.analysis_worker.screenshot_taken.emit()
 
 class QFlowLayout(QLayout):
@@ -676,5 +690,4 @@ def main():
 
 if __name__ == "__main__":
     main() 
-
 
