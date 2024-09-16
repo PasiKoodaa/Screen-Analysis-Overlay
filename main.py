@@ -9,9 +9,9 @@ import logging
 import os
 from datetime import datetime
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget, QMenu,
-                             QHBoxLayout, QFileDialog, QInputDialog, QMessageBox)
-from PyQt5.QtCore import Qt, QTimer, QPoint, QRect, QThread, QObject, pyqtSignal, pyqtSlot
-from PyQt5.QtGui import QFont, QPainter, QPen, QPixmap, QCursor
+                             QHBoxLayout, QFileDialog, QInputDialog, QMessageBox, QSizePolicy, QLayout, QStyle)
+from PyQt5.QtCore import Qt, QTimer, QPoint, QRect, QThread, QObject, pyqtSignal, pyqtSlot, QSize
+from PyQt5.QtGui import QFont, QPainter, QPen, QPixmap, QCursor, QColor
 import json
 from queue import Queue
 import win32gui
@@ -183,6 +183,7 @@ class TransparentOverlay(QMainWindow):
         self.analysis_paused = False  # New flag to control analysis
         self.start_point = None
         self.end_point = None
+        self.buttons_visible = True  # New attribute to track button visibility
 
         # Create a directory for saved screenshots
         self.screenshot_dir = "saved_screenshots"
@@ -206,7 +207,9 @@ class TransparentOverlay(QMainWindow):
     def initUI(self):
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setGeometry(100, 100, 800, 600)
+        
+        # Set a fixed initial size for the overlay
+        self.setFixedSize(1000, 800)
         
         central_widget = QWidget(self)
         self.setCentralWidget(central_widget)
@@ -219,35 +222,54 @@ class TransparentOverlay(QMainWindow):
         self.label.setWordWrap(True)
         main_layout.addWidget(self.label)
         
-        button_layout = QHBoxLayout()
+        self.button_widget = QWidget(self)
+        self.button_layout = QFlowLayout(self.button_widget)
+        self.button_layout.setSpacing(5)
+        self.button_layout.setContentsMargins(5, 5, 5, 5)
         
-        self.select_region_button = QPushButton("Select Region", self)
-        self.select_region_button.clicked.connect(self.select_region)
-        button_layout.addWidget(self.select_region_button)
-
-        self.update_prompt_button = QPushButton("Update Prompt", self)
-        self.update_prompt_button.clicked.connect(self.show_prompt_dialog)
-        button_layout.addWidget(self.update_prompt_button)
+        buttons = [
+            ("Select Region", self.select_region),
+            ("Update Prompt", self.show_prompt_dialog),
+            ("Pause/Continue", self.toggle_pause_resume),
+            ("Save Results", self.save_results),
+            ("Set Alert", self.set_alert_prompt),
+            ("Resize Overlay", self.resize_overlay)
+        ]
         
-        self.pause_resume_button = QPushButton("Pause", self)
-        self.pause_resume_button.clicked.connect(self.toggle_pause_resume)
-        button_layout.addWidget(self.pause_resume_button)
+        for text, slot in buttons:
+            button = QPushButton(text, self)
+            button.clicked.connect(slot)
+            button.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+            self.button_layout.addWidget(button)
         
-        self.save_results_button = QPushButton("Save Results", self)
-        self.save_results_button.clicked.connect(self.save_results)
-        button_layout.addWidget(self.save_results_button)
+        main_layout.addWidget(self.button_widget)
         
-        self.set_alert_button = QPushButton("Set Alert", self)
-        self.set_alert_button.clicked.connect(self.set_alert_prompt)
-        button_layout.addWidget(self.set_alert_button)
-
-        self.resize_overlay_button = QPushButton("Resize Overlay", self)
-        self.resize_overlay_button.clicked.connect(self.resize_overlay)
-        button_layout.addWidget(self.resize_overlay_button)
-        
-        main_layout.addLayout(button_layout)
+        # Set layout margins and spacing
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(10)
         
         self.show()
+
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.toggle_buttons_visibility()
+
+    def toggle_buttons_visibility(self):
+        self.buttons_visible = not self.buttons_visible
+        self.button_widget.setVisible(self.buttons_visible)
+
+    def resize_overlay(self):
+        new_width, ok1 = QInputDialog.getInt(self, 'Resize Overlay', 'Enter new width:', self.width(), 100, 1000)
+        if ok1:
+            new_height, ok2 = QInputDialog.getInt(self, 'Resize Overlay', 'Enter new height:', self.height(), 100, 1000)
+            if ok2:
+                self.setFixedSize(new_width, new_height)
+                self.update_text(f"Overlay resized to {new_width}x{new_height}")
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.button_widget.setFixedWidth(self.width() - 10)  # Adjust for margins         
+
     
     def update_text(self, text):
         self.label.setText(text)
@@ -281,7 +303,7 @@ class TransparentOverlay(QMainWindow):
     def toggle_pause_resume(self):
         self.is_paused = not self.is_paused
         button_text = "Resume" if self.is_paused else "Pause"
-        self.pause_resume_button.setText(button_text)
+        # self.pause_resume_button.setText(button_text)
         status = "paused" if self.is_paused else "resumed"
         self.update_text(f"Capture and analysis {status}")
         
@@ -358,13 +380,16 @@ class TransparentOverlay(QMainWindow):
         self.select_window = QMainWindow()
         self.select_window.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.select_window.setGeometry(screen.geometry())
-        self.select_window.setStyleSheet("background-color: rgba(0, 0, 0, 100);")
+        self.select_window.setAttribute(Qt.WA_TranslucentBackground)
         self.select_window.show()
         self.select_window.setMouseTracking(True)
         self.select_window.mousePressEvent = self.region_select_press
         self.select_window.mouseMoveEvent = self.region_select_move
         self.select_window.mouseReleaseEvent = self.region_select_release
         self.select_window.paintEvent = self.region_select_paint
+
+
+
     
     def region_select_press(self, event):
         self.start_point = event.pos()
@@ -392,11 +417,18 @@ class TransparentOverlay(QMainWindow):
             self.analysis_worker.request_screenshot.emit() 
     
     def region_select_paint(self, event):
+        painter = QPainter(self.select_window)
+        painter.drawPixmap(self.select_window.rect(), self.original_screenshot)
+        
         if self.start_point and self.end_point:
-            painter = QPainter(self.select_window)
-            painter.drawPixmap(self.select_window.rect(), self.original_screenshot)
             painter.setPen(QPen(Qt.red, 2, Qt.SolidLine))
+            painter.setBrush(QColor(255, 0, 0, 50))  # Semi-transparent red
             painter.drawRect(QRect(self.start_point, self.end_point).normalized())
+        
+        # Draw instructions
+        painter.setPen(Qt.white)
+        painter.setFont(QFont('Arial', 14))
+        painter.drawText(10, 30, "Click and drag to select a region. Press Esc to cancel.")
 
     def update_system_prompt(self, new_prompt):
         self.system_prompt = new_prompt
@@ -413,7 +445,7 @@ class TransparentOverlay(QMainWindow):
 
     def set_alert_prompt(self):
         prompt, ok = QInputDialog.getText(self, 'Set Alert Prompt', 
-                                          'Enter alert condition (e.g., "Can you see cats?"):')
+                                          'Enter alert condition (e.g., "Alert when you see a robbery"):')
         if ok and prompt:
             self.alert_prompt = prompt
             self.alert_active = True
@@ -436,19 +468,15 @@ class TransparentOverlay(QMainWindow):
         if response.strip().lower() == 'yes':
             self.trigger_alert(analysis_text)
 
-    def resize_overlay(self):
-        new_width, ok1 = QInputDialog.getInt(self, 'Resize Overlay', 'Enter new width:', self.width(), 100, 3000)
-        if ok1:
-            new_height, ok2 = QInputDialog.getInt(self, 'Resize Overlay', 'Enter new height:', self.height(), 100, 3000)
-            if ok2:
-                self.resize(new_width, new_height)
-                self.update_text(f"Overlay resized to {new_width}x{new_height}")
 
     @pyqtSlot()
     def take_screenshot(self):
         if self.is_selecting_region:
             logging.info("Region selection in progress, skipping screenshot")
             return
+        
+        self.hide()  # Hide the overlay
+        QApplication.processEvents()  # Ensure the hide takes effect
 
         try:
             if self.capture_region and not self.is_selecting_region:
@@ -487,6 +515,7 @@ class TransparentOverlay(QMainWindow):
                 img = ImageGrab.grab()
                 logging.info("Full screen screenshot taken")
 
+            self.show()
             # Save the full-size screenshot
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"screenshot_{timestamp}.png"
@@ -506,6 +535,112 @@ class TransparentOverlay(QMainWindow):
             self.current_image = None
         finally:
             self.analysis_worker.screenshot_taken.emit()
+
+class QFlowLayout(QLayout):
+    def __init__(self, parent=None, margin=0, spacing=-1):
+        super(QFlowLayout, self).__init__(parent)
+        self.itemList = []
+        self.m_hSpace = spacing
+        self.m_vSpace = spacing
+        self.setContentsMargins(margin, margin, margin, margin)
+
+    def __del__(self):
+        item = self.takeAt(0)
+        while item:
+            item = self.takeAt(0)
+
+    def addItem(self, item):
+        self.itemList.append(item)
+
+    def horizontalSpacing(self):
+        if self.m_hSpace >= 0:
+            return self.m_hSpace
+        else:
+            return self.smartSpacing(QStyle.PM_LayoutHorizontalSpacing)
+
+    def verticalSpacing(self):
+        if self.m_vSpace >= 0:
+            return self.m_vSpace
+        else:
+            return self.smartSpacing(QStyle.PM_LayoutVerticalSpacing)
+
+    def count(self):
+        return len(self.itemList)
+
+    def itemAt(self, index):
+        if 0 <= index < len(self.itemList):
+            return self.itemList[index]
+        return None
+
+    def takeAt(self, index):
+        if 0 <= index < len(self.itemList):
+            return self.itemList.pop(index)
+        return None
+
+    def expandingDirections(self):
+        return Qt.Orientations(Qt.Orientation(0))
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        height = self.doLayout(QRect(0, 0, width, 0), True)
+        return height
+
+    def setGeometry(self, rect):
+        super(QFlowLayout, self).setGeometry(rect)
+        self.doLayout(rect, False)
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    def minimumSize(self):
+        size = QSize()
+        for item in self.itemList:
+            size = size.expandedTo(item.minimumSize())
+        size += QSize(2 * self.contentsMargins().top(), 2 * self.contentsMargins().top())
+        return size
+
+    def doLayout(self, rect, testOnly):
+        x = rect.x()
+        y = rect.y()
+        lineHeight = 0
+
+        for item in self.itemList:
+            wid = item.widget()
+            spaceX = self.horizontalSpacing()
+            if spaceX == -1:
+                spaceX = wid.style().layoutSpacing(
+                    QSizePolicy.PushButton, QSizePolicy.PushButton, Qt.Horizontal)
+            spaceY = self.verticalSpacing()
+            if spaceY == -1:
+                spaceY = wid.style().layoutSpacing(
+                    QSizePolicy.PushButton, QSizePolicy.PushButton, Qt.Vertical)
+            
+            nextX = x + item.sizeHint().width() + spaceX
+            if nextX - spaceX > rect.right() and lineHeight > 0:
+                x = rect.x()
+                y = y + lineHeight + spaceY
+                nextX = x + item.sizeHint().width() + spaceX
+                lineHeight = 0
+
+            if not testOnly:
+                item.setGeometry(QRect(QPoint(x, y), item.sizeHint()))
+
+            x = nextX
+            lineHeight = max(lineHeight, item.sizeHint().height())
+
+        return y + lineHeight - rect.y()
+
+    def smartSpacing(self, pm):
+        parent = self.parent()
+        if not parent:
+            return -1
+        elif parent.isWidgetType():
+            return parent.style().pixelMetric(pm, None, parent)
+        else:
+            return parent.spacing()
+           
 
 
 def capture_and_analyze(overlay):
@@ -541,4 +676,5 @@ def main():
 
 if __name__ == "__main__":
     main() 
+
 
