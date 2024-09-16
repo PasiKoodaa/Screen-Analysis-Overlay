@@ -53,7 +53,6 @@ https://github.com/user-attachments/assets/53d47ec5-704a-4ff2-a21c-796f739a1c5e
    ```
    conda create -n screen-analysis python=3.9
    conda activate screen-analysis
-   conda install pip
    pip install -r requirements.txt
    ```
 
