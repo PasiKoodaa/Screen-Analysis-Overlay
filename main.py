@@ -7,9 +7,12 @@ import requests
 import base64
 import logging
 import os
+import json
+import csv
+import sqlite3
 from datetime import datetime
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget, QMenu,
-                             QHBoxLayout, QFileDialog, QInputDialog, QMessageBox, QSizePolicy, QLayout, QStyle)
+                             QHBoxLayout, QFileDialog, QInputDialog, QMessageBox, QSizePolicy, QLayout, QStyle, QDialog, QLineEdit, QListWidget, QScrollArea, QTextEdit)
 from PyQt5.QtCore import Qt, QTimer, QPoint, QRect, QThread, QObject, pyqtSignal, pyqtSlot, QSize
 from PyQt5.QtGui import QFont, QPainter, QPen, QPixmap, QCursor, QColor
 import json
@@ -18,6 +21,7 @@ import win32gui
 import win32ui
 import win32con
 import win32api
+import subprocess
 
 # KoboldCPP server settings
 KOBOLDCPP_URL = "http://localhost:5001/api/v1/generate"
@@ -42,7 +46,74 @@ def encode_image_to_base64(image):
     image.save(buffered, format="JPEG")
     return base64.b64encode(buffered.getvalue()).decode('utf-8') 
 
+class HistoryManager:
+    def __init__(self, db_path='analysis_history.db'):
+        self.db_path = db_path
+        self.init_db()
 
+    def init_db(self):
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS analysis_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT,
+                analysis_text TEXT,
+                prompt TEXT
+            )
+        ''')
+        conn.commit()
+        conn.close()
+
+    def add_analysis(self, analysis_text, prompt):
+        timestamp = datetime.now().isoformat()
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('INSERT INTO analysis_history (timestamp, analysis_text, prompt) VALUES (?, ?, ?)',
+                       (timestamp, analysis_text, prompt))
+        conn.commit()
+        conn.close()
+
+    def get_history(self, limit=100):
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        if limit is None:
+            cursor.execute('SELECT * FROM analysis_history ORDER BY timestamp DESC')
+        else:
+            cursor.execute('SELECT * FROM analysis_history ORDER BY timestamp DESC LIMIT ?', (limit,))
+        history = cursor.fetchall()
+        conn.close()
+        return history
+
+    def search_history(self, query):
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM analysis_history WHERE analysis_text LIKE ? OR prompt LIKE ? ORDER BY timestamp DESC',
+                       (f'%{query}%', f'%{query}%'))
+        results = cursor.fetchall()
+        conn.close()
+        return results
+
+    def export_to_json(self, filename):
+        history = self.get_history(limit=None)
+        data = [{'id': item[0], 'timestamp': item[1], 'analysis_text': item[2], 'prompt': item[3]} for item in history]
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+    def export_to_csv(self, filename):
+        history = self.get_history(limit=None)
+        with open(filename, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(['ID', 'Timestamp', 'Analysis Text', 'Prompt'])
+            writer.writerows(history)
+
+    def get_analysis_by_timestamp(self, timestamp):
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM analysis_history WHERE timestamp = ?', (timestamp,))
+        analysis = cursor.fetchone()
+        conn.close()
+        return analysis
 
 
 class AnalysisWorker(QObject):
@@ -185,6 +256,9 @@ class TransparentOverlay(QMainWindow):
         self.end_point = None
         self.buttons_visible = True  # New attribute to track button visibility
         self.hide_during_screenshot = True  # New attribute to control overlay visibility during screenshots
+        self.history_manager = HistoryManager()
+        self.initUI()
+
 
         # Create a directory for saved screenshots
         self.screenshot_dir = "saved_screenshots"
@@ -210,7 +284,7 @@ class TransparentOverlay(QMainWindow):
         self.setAttribute(Qt.WA_TranslucentBackground)
         
         # Set a fixed initial size for the overlay
-        self.setFixedSize(1150, 800)
+        self.setFixedSize(1500, 800)
         
         central_widget = QWidget(self)
         self.setCentralWidget(central_widget)
@@ -237,6 +311,15 @@ class TransparentOverlay(QMainWindow):
             ("Resize Overlay", self.resize_overlay),
             ("Toggle Hide", self.toggle_hide_during_screenshot)  # New button
         ]
+
+        # Add new buttons
+        view_history_button = QPushButton("View History", self)
+        view_history_button.clicked.connect(self.show_history_dialog)
+        self.button_layout.addWidget(view_history_button)
+        
+        export_button = QPushButton("Export History", self)
+        export_button.clicked.connect(self.show_export_dialog)
+        self.button_layout.addWidget(export_button)
         
         for text, slot in buttons:
             button = QPushButton(text, self)
@@ -279,6 +362,116 @@ class TransparentOverlay(QMainWindow):
     def update_text(self, text):
         self.label.setText(text)
         self.analysis_results.append(text)
+        # Automatically save the analysis to history
+        self.history_manager.add_analysis(text, self.system_prompt)
+
+    def show_history_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Analysis History")
+        dialog.setMinimumSize(600, 400)  # Set a minimum size for better usability
+        layout = QVBoxLayout(dialog)
+
+        # Add search box
+        search_box = QLineEdit(dialog)
+        search_box.setPlaceholderText("Search history...")
+        layout.addWidget(search_box)
+
+        # Add list widget to display history
+        list_widget = QListWidget(dialog)
+        layout.addWidget(list_widget)
+
+        # Function to update the list widget
+        def update_list(query=''):
+            list_widget.clear()
+            if query:
+                history = self.history_manager.search_history(query)
+            else:
+                history = self.history_manager.get_history()
+            for item in history:
+                list_widget.addItem(f"{item[1]}: {item[2][:50]}...")
+
+        # Connect search box to update function
+        search_box.textChanged.connect(update_list)
+
+        # Function to open selected analysis
+        def open_analysis(item):
+            selected_text = item.text()
+            parts = selected_text.split(":")  # Split the string into parts
+            timestamp = parts[0] + ":" + parts[1] + ":" + parts[2]  # Reconstruct the timestamp
+            print(timestamp)
+            full_analysis = self.history_manager.get_analysis_by_timestamp(timestamp)
+            if full_analysis:
+                self.show_analysis_detail(full_analysis)
+
+        # Connect list widget item click to open_analysis function
+        list_widget.itemClicked.connect(open_analysis)
+
+        # Initial population of the list
+        update_list()
+
+        dialog.exec_()
+
+    def show_analysis_detail(self, analysis):
+        detail_dialog = QDialog(self)
+        detail_dialog.setWindowTitle(f"Analysis Detail - {analysis[1]}")
+        detail_dialog.setMinimumSize(800, 600)  # Set a minimum size for better readability
+        layout = QVBoxLayout(detail_dialog)
+
+        # Create a scroll area for the text
+        scroll_area = QScrollArea(detail_dialog)
+        scroll_area.setWidgetResizable(True)
+        layout.addWidget(scroll_area)
+
+        # Create a widget to hold the text
+        content_widget = QWidget()
+        scroll_area.setWidget(content_widget)
+        content_layout = QVBoxLayout(content_widget)
+
+        # Add timestamp
+        timestamp_label = QLabel(f"Timestamp: {analysis[1]}")
+        timestamp_label.setStyleSheet("font-weight: bold;")
+        content_layout.addWidget(timestamp_label)
+
+        # Add prompt
+        prompt_label = QLabel(f"Prompt: {analysis[3]}")
+        prompt_label.setStyleSheet("font-weight: bold;")
+        content_layout.addWidget(prompt_label)
+
+        # Add analysis text
+        analysis_text = QTextEdit()
+        analysis_text.setPlainText(analysis[2])
+        analysis_text.setReadOnly(True)
+        content_layout.addWidget(analysis_text)
+
+        detail_dialog.exec_()
+
+    def show_export_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Export History")
+        layout = QVBoxLayout(dialog)
+
+        json_button = QPushButton("Export as JSON", dialog)
+        csv_button = QPushButton("Export as CSV", dialog)
+
+        layout.addWidget(json_button)
+        layout.addWidget(csv_button)
+
+        def export_json():
+            filename, _ = QFileDialog.getSaveFileName(self, "Save JSON", "", "JSON Files (*.json)")
+            if filename:
+                self.history_manager.export_to_json(filename)
+                QMessageBox.information(self, "Export Successful", f"Data exported to {filename}")
+
+        def export_csv():
+            filename, _ = QFileDialog.getSaveFileName(self, "Save CSV", "", "CSV Files (*.csv)")
+            if filename:
+                self.history_manager.export_to_csv(filename)
+                QMessageBox.information(self, "Export Successful", f"Data exported to {filename}")
+
+        json_button.clicked.connect(export_json)
+        csv_button.clicked.connect(export_csv)
+
+        dialog.exec_()
     
     @pyqtSlot(str, str)
     def trigger_alert(self, alert_prompt, analysis_text):
@@ -454,7 +647,7 @@ class TransparentOverlay(QMainWindow):
 
     def set_alert_prompt(self):
         prompt, ok = QInputDialog.getText(self, 'Set Alert Prompt', 
-                                          'Enter alert condition (e.g., "Alert when you see a robbery"):')
+                                          'Enter alert condition (e.g., "Can you see birds?"):')
         if ok and prompt:
             self.alert_prompt = prompt
             self.alert_active = True
@@ -654,6 +847,8 @@ class QFlowLayout(QLayout):
             return parent.style().pixelMetric(pm, None, parent)
         else:
             return parent.spacing()
+        
+    
            
 
 
@@ -690,4 +885,5 @@ def main():
 
 if __name__ == "__main__":
     main() 
+
 
