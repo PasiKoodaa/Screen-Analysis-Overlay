@@ -30,15 +30,30 @@ logging.basicConfig(filename='app.log', level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def resize_image(image, scale_factor=0.5):
+def resize_image(image):
     """
-    Resize the image by a given scale factor.
+    Resize the image if it exceeds 1.8 million pixels while maintaining aspect ratio.
     :param image: PIL Image object
-    :param scale_factor: Factor to scale the image by (e.g., 0.5 for half size)
-    :return: Resized PIL Image object
+    :return: Resized PIL Image object if necessary, otherwise the original image
     """
-    new_size = (int(image.width * scale_factor), int(image.height * scale_factor))
-    return image.resize(new_size, Image.LANCZOS)
+    MAX_PIXELS = 1_800_000  # 1.8 million pixels
+    
+    # Calculate current number of pixels
+    current_pixels = image.width * image.height
+    
+    # If the image is already small enough, return it as is
+    if current_pixels <= MAX_PIXELS:
+        return image
+    
+    # Calculate the scale factor needed to reduce to 1.8 million pixels
+    scale_factor = (MAX_PIXELS / current_pixels) ** 0.5
+    
+    # Calculate new dimensions, ensuring we round down
+    new_width = int(image.width * scale_factor)
+    new_height = int(image.height * scale_factor)
+    
+    # Resize the image using LANCZOS resampling
+    return image.resize((new_width, new_height), Image.LANCZOS)
 
 
 def encode_image_to_base64(image):
@@ -737,7 +752,7 @@ class TransparentOverlay(QMainWindow):
             img.save(filepath)
             logging.info(f"Screenshot saved: {filepath}")  
             
-            self.current_image = resize_image(img, scale_factor=0.25)
+            self.current_image = resize_image(img)
             
             if self.current_image.getbbox() is None:
                 logging.warning("Captured image is empty")
@@ -874,7 +889,7 @@ def capture_and_analyze(overlay):
             else:
                 screenshot = pyautogui.screenshot()
             
-            resized_image = resize_image(screenshot, scale_factor=0.25)
+            resized_image = resize_image(screenshot)
             overlay.current_image = resized_image  # Store the current image
             
             description = analyze_image_with_koboldcpp(resized_image, overlay.system_prompt)
@@ -894,4 +909,5 @@ def main():
 
 if __name__ == "__main__":
     main() 
+
 
