@@ -541,30 +541,39 @@ class TransparentOverlay(QMainWindow):
     
     def show_context_menu(self, pos):
         context_menu = QMenu(self)
-        hide_action = context_menu.addAction("Hide Overlay")
+        hide_buttons = context_menu.addAction("Hide Buttons")
+        view_history = context_menu.addAction("View History")
+        export_history = context_menu.addAction("Export History")
         update_prompt_action = context_menu.addAction("Update Prompt")
         toggle_pause_action = context_menu.addAction("Pause/Resume")
         save_results_action = context_menu.addAction("Save Results")
         set_alert_action = context_menu.addAction("Set Alert Condition")
         clear_alert_action = context_menu.addAction("Clear Alert")
-        resize_action = context_menu.addAction("Resize Overlay")  # Add this line
+        resize_action = context_menu.addAction("Resize Overlay")
+        toggle_hide = context_menu.addAction("Toggle Hide")
         exit_action = context_menu.addAction("Exit Application")
         
         action = context_menu.exec_(self.mapToGlobal(pos))
-        if action == hide_action:
-            self.hide()
+        if action == hide_buttons:
+            self.toggle_buttons_visibility()
         elif action == update_prompt_action:
             self.show_prompt_dialog()
         elif action == toggle_pause_action:
             self.toggle_pause_resume()
+        elif action == view_history:
+            self.show_history_dialog()
+        elif action == export_history:
+            self.show_export_dialog()
         elif action == save_results_action:
             self.save_results()
         elif action == set_alert_action:
             self.set_alert_prompt()
         elif action == clear_alert_action:
             self.clear_alert()
-        elif action == resize_action:  # Add this block
+        elif action == resize_action:
             self.resize_overlay()
+        elif action == toggle_hide: 
+            self.toggle_hide_during_screenshot()
         elif action == exit_action:
             QApplication.quit()
     
@@ -885,5 +894,4 @@ def main():
 
 if __name__ == "__main__":
     main() 
-
 
