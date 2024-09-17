@@ -28,8 +28,8 @@ https://github.com/user-attachments/assets/53d47ec5-704a-4ff2-a21c-796f739a1c5e
 - Hide/show buttons by double clicking the overlay
 - Toggle overlay visibility during screenshots
 - Saves analysis history to SQL database
-> Search and view analysis history
-> Export analysis history to JSON or CSV file
+- Search and view analysis history
+- Export analysis history to JSON or CSV file
 
 ## Requirements
 
