@@ -27,6 +27,9 @@ https://github.com/user-attachments/assets/53d47ec5-704a-4ff2-a21c-796f739a1c5e
 - Resizable overlay
 - Hide/show buttons by double clicking the overlay
 - Toggle overlay visibility during screenshots
+- Saves analysis history to SQL database
+> Search and view analysis history
+> Export analysis history to JSON or CSV file
 
 ## Requirements
 
@@ -60,7 +63,7 @@ https://github.com/user-attachments/assets/53d47ec5-704a-4ff2-a21c-796f739a1c5e
 
    ```
    python -m venv venv
-   source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
+   On Windows, use `venv\Scripts\activate`
    pip install -r requirements.txt
    ```
 
@@ -74,6 +77,8 @@ https://github.com/user-attachments/assets/53d47ec5-704a-4ff2-a21c-796f739a1c5e
    ```
 
 2. Use the buttons or right-click context menu to:
+   - View history and search history
+   - Export history to JSON or CSV
    - Select a capture region
    - Update the analysis prompt
    - Pause/Resume analysis
@@ -82,7 +87,7 @@ https://github.com/user-attachments/assets/53d47ec5-704a-4ff2-a21c-796f739a1c5e
    - Resize the overlay
    - Toggle overlay visibility during screenshots
 
-3. The overlay will continuously capture and analyze the selected region, displaying results in real-time.
+4. The overlay will continuously capture and analyze the selected region, displaying results in real-time.
 
 ## Configuration
 ![kobo](https://github.com/user-attachments/assets/c8781ff4-b7c5-47a4-b72e-84da4a5e3ea2)
