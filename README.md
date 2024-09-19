@@ -48,7 +48,7 @@ https://github.com/user-attachments/assets/240f12f5-2197-4cf4-88d1-ba273b509393
 
 1. Clone this repository:
    ```
-   git clone https://github.com/yourusername/image-analysis-overlay.git
+   git clone https://github.com/PasiKoodaa/Screen-Analysis-Overlay
    cd image-analysis-overlay
    ```
 
@@ -67,7 +67,7 @@ https://github.com/user-attachments/assets/240f12f5-2197-4cf4-88d1-ba273b509393
 
    ```
    python -m venv venv
-   On Windows, use `venv\Scripts\activate`
+   venv\Scripts\activate
    pip install -r requirements.txt
    ```
 
