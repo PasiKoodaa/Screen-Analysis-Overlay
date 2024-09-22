@@ -10,10 +10,10 @@ import os
 import json
 import csv
 import sqlite3
-from datetime import datetime
+from datetime import datetime, time as dt_time
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget, QMenu,
-                             QHBoxLayout, QFileDialog, QInputDialog, QMessageBox, QSizePolicy, QLayout, QStyle, QDialog, QLineEdit, QListWidget, QScrollArea, QTextEdit)
-from PyQt5.QtCore import Qt, QTimer, QPoint, QRect, QThread, QObject, pyqtSignal, pyqtSlot, QSize
+                             QHBoxLayout, QFileDialog, QInputDialog, QMessageBox, QSizePolicy, QLayout, QStyle, QDialog, QLineEdit, QListWidget, QScrollArea, QTextEdit, QTimeEdit)
+from PyQt5.QtCore import Qt, QTimer, QPoint, QRect, QThread, QObject, pyqtSignal, pyqtSlot, QSize, QTime
 from PyQt5.QtGui import QFont, QPainter, QPen, QPixmap, QCursor, QColor
 import json
 from queue import Queue
@@ -151,7 +151,13 @@ class AnalysisWorker(QObject):
     def run_analysis(self):
         while self.running:
             try:
-                if self.overlay and not self.overlay.is_paused and not self.overlay.analysis_paused:
+                current_time = datetime.now().time()
+                if (self.overlay and 
+                    not self.overlay.is_paused and 
+                    not self.overlay.analysis_paused and
+                    (not self.overlay.timer_start or 
+                     (self.overlay.timer_start <= current_time < self.overlay.timer_end))):
+                    
                     self.request_screenshot.emit()
                     # Wait for the screenshot to be taken
                     timeout = 5  # 5 seconds timeout
@@ -181,7 +187,7 @@ class AnalysisWorker(QObject):
             except Exception as e:
                 self.error_occurred.emit(str(e))
             
-            time.sleep(5)
+            time.sleep(5)  # Wait for 5 seconds before the next analysis cycle
 
 
     def check_alert_condition(self, image, analysis_text):
@@ -272,6 +278,12 @@ class TransparentOverlay(QMainWindow):
         self.buttons_visible = True  # New attribute to track button visibility
         self.hide_during_screenshot = True  # New attribute to control overlay visibility during screenshots
         self.history_manager = HistoryManager()
+        # Add new attributes for timer functionality
+        self.timer_start = None
+        self.timer_end = None
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.check_timer)
+        self.timer.start(60000)  # Check every minute
         self.initUI()
 
 
@@ -316,6 +328,15 @@ class TransparentOverlay(QMainWindow):
         self.button_layout = QFlowLayout(self.button_widget)
         self.button_layout.setSpacing(5)
         self.button_layout.setContentsMargins(5, 5, 5, 5)
+
+        # Add new buttons for timer functionality
+        set_timer_button = QPushButton("Set Timer", self)
+        set_timer_button.clicked.connect(self.show_timer_dialog)
+        self.button_layout.addWidget(set_timer_button)
+
+        clear_timer_button = QPushButton("Clear Timer", self)
+        clear_timer_button.clicked.connect(self.clear_timer)
+        self.button_layout.addWidget(clear_timer_button)
         
         buttons = [
             ("Select Region", self.select_region),
@@ -695,6 +716,58 @@ class TransparentOverlay(QMainWindow):
             self.trigger_alert(analysis_text)
 
 
+    def show_timer_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Set Analysis Timer")
+        layout = QVBoxLayout(dialog)
+
+        start_time_edit = QTimeEdit(dialog)
+        start_time_edit.setDisplayFormat("HH:mm")
+        layout.addWidget(QLabel("Start Time:"))
+        layout.addWidget(start_time_edit)
+
+        end_time_edit = QTimeEdit(dialog)
+        end_time_edit.setDisplayFormat("HH:mm")
+        layout.addWidget(QLabel("End Time:"))
+        layout.addWidget(end_time_edit)
+
+        button_box = QHBoxLayout()
+        ok_button = QPushButton("OK", dialog)
+        cancel_button = QPushButton("Cancel", dialog)
+        button_box.addWidget(ok_button)
+        button_box.addWidget(cancel_button)
+        layout.addLayout(button_box)
+
+        ok_button.clicked.connect(dialog.accept)
+        cancel_button.clicked.connect(dialog.reject)
+
+        if dialog.exec_() == QDialog.Accepted:
+            self.timer_start = start_time_edit.time().toPyTime()
+            self.timer_end = end_time_edit.time().toPyTime()
+            self.update_text(f"Timer set: {self.timer_start.strftime('%H:%M')} - {self.timer_end.strftime('%H:%M')}")
+
+            self.check_timer()  # Immediately check if we should start/stop analysis
+
+    def clear_timer(self):
+        self.timer_start = None
+        self.timer_end = None
+        self.update_text("Timer cleared")
+        self.check_timer()
+
+    def check_timer(self):
+        current_time = datetime.now().time()
+        if self.timer_start and self.timer_end:
+            if self.timer_start <= current_time < self.timer_end:
+                if self.is_paused:
+                    self.toggle_pause_resume()
+                    self.update_text("Analysis started due to timer")
+            else:
+                if not self.is_paused:
+                    self.toggle_pause_resume()
+                    self.update_text("Analysis paused due to timer")
+
+
+
     @pyqtSlot()
     def take_screenshot(self):
         if self.is_selecting_region:
@@ -909,5 +982,3 @@ def main():
 
 if __name__ == "__main__":
     main() 
-
-
