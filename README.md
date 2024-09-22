@@ -1,6 +1,6 @@
 # Screen Analysis Overlay
 
-This application provides a transparent overlay for real-time image analysis using KoboldCPP. It captures screenshots of a selected region or the entire screen and analyzes them using AI, providing descriptions and alerts based on user-defined conditions. Currently only Windows compatible.
+This application provides a transparent overlay for real-time image analysis using KoboldCPP or Ollama. It captures screenshots of a selected region or the entire screen and analyzes them using AI, providing descriptions and alerts based on user-defined conditions. Currently only Windows compatible.
 
 
 
@@ -23,7 +23,7 @@ https://github.com/user-attachments/assets/240f12f5-2197-4cf4-88d1-ba273b509393
 
 - Transparent overlay that stays on top of other windows
 - Customizable capture region selection
-- Real-time screen analysis using KoboldCPP
+- Real-time screen analysis using KoboldCPP or Ollama
 - Customizable system prompts for analysis
 - Pause/Resume functionality
 - Alert system for specific conditions
@@ -35,6 +35,8 @@ https://github.com/user-attachments/assets/240f12f5-2197-4cf4-88d1-ba273b509393
 - Search and view analysis history
 - Export analysis history to JSON or CSV file
 - Set analysis Start and End times
+- Switch between KoboldCPP and Ollama backends
+- Choose Ollama model for analysis
 
 ## Requirements
 
@@ -72,7 +74,7 @@ https://github.com/user-attachments/assets/240f12f5-2197-4cf4-88d1-ba273b509393
    pip install -r requirements.txt
    ```
 
-3. Ensure you have KoboldCPP running locally on `http://localhost:5001`. Adjust the `KOBOLDCPP_URL` in the script if your setup is different.
+3. Ensure you have KoboldCPP running locally on `http://localhost:5001` or Ollama running on `http://localhost:11434`. Adjust the `KOBOLDCPP_URL` in the script if your setup is different.
 
 ## Usage
 
@@ -91,6 +93,8 @@ https://github.com/user-attachments/assets/240f12f5-2197-4cf4-88d1-ba273b509393
    - Save analysis results
    - Resize the overlay
    - Toggle overlay visibility during screenshots
+   - Select backend (KoboldCPP or Ollama)
+   - Choose Ollama model (when using Ollama backend)
 
 4. The overlay will continuously capture and analyze the selected region, displaying results in real-time.
 
@@ -100,5 +104,12 @@ https://github.com/user-attachments/assets/240f12f5-2197-4cf4-88d1-ba273b509393
 - Adjust the `KOBOLDCPP_URL` variable in the script if your KoboldCPP server is running on a different address.
 - Modify the `system_prompt` variable to change the default analysis prompt.
 
+## Using Ollama Backend
+
+1. Ensure Ollama is installed and running on your system.
+2. In the application, click "Select Backend" button.
+3. Choose "Ollama" as the backend.
+4. Enter the desired Ollama model name (e.g., "llava" or "minicpm-v").
+5. Click "OK" to confirm the selection.
 
 
