@@ -34,6 +34,7 @@ https://github.com/user-attachments/assets/240f12f5-2197-4cf4-88d1-ba273b509393
 - Saves analysis history to SQL database
 - Search and view analysis history
 - Export analysis history to JSON or CSV file
+- Set analysis Start and End times
 
 ## Requirements
 
