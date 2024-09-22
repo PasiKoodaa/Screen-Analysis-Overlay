@@ -12,7 +12,7 @@ import csv
 import sqlite3
 from datetime import datetime, time as dt_time
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget, QMenu,
-                             QHBoxLayout, QFileDialog, QInputDialog, QMessageBox, QSizePolicy, QLayout, QStyle, QDialog, QLineEdit, QListWidget, QScrollArea, QTextEdit, QTimeEdit)
+                             QHBoxLayout, QFileDialog, QInputDialog, QMessageBox, QSizePolicy, QLayout, QStyle, QDialog, QLineEdit, QListWidget, QScrollArea, QTextEdit, QTimeEdit, QDialogButtonBox, QRadioButton)
 from PyQt5.QtCore import Qt, QTimer, QPoint, QRect, QThread, QObject, pyqtSignal, pyqtSlot, QSize, QTime
 from PyQt5.QtGui import QFont, QPainter, QPen, QPixmap, QCursor, QColor
 import json
@@ -171,7 +171,12 @@ class AnalysisWorker(QObject):
                         time.sleep(0.1)
 
                     if self.overlay.current_image and self.overlay.current_image.getbbox() is not None:
-                        description = analyze_image_with_koboldcpp(self.overlay.current_image, self.overlay.system_prompt)
+                        # Choose the appropriate backend for analysis
+                        if self.overlay.backend == "koboldcpp":
+                            description = analyze_image_with_koboldcpp(self.overlay.current_image, self.overlay.system_prompt)
+                        else:  # Ollama
+                            description = analyze_image_with_ollama(self.overlay.current_image, self.overlay.system_prompt, self.overlay.ollama_model)
+                        
                         self.analysis_complete.emit(description)
                         
                         if self.overlay.alert_active:
@@ -254,6 +259,36 @@ def analyze_image_with_koboldcpp(image, prompt):
     except requests.RequestException as e:
         print(f"Error communicating with KoboldCPP: {e}")
         return "Unable to analyze image at this time."
+    
+
+def analyze_image_with_ollama(image, prompt, model="llava"):
+    image_base64 = encode_image_to_base64(image)
+    
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,  # Change this to True if you want to handle streaming
+        "images": [image_base64]
+    }
+    
+    try:
+        response = requests.post("http://localhost:11434/api/generate", json=payload, stream=True)
+        response.raise_for_status()
+        
+        full_response = ""
+        for line in response.iter_lines():
+            if line:
+                decoded_line = line.decode('utf-8')
+                response_data = json.loads(decoded_line)
+                if 'response' in response_data:
+                    full_response += response_data['response']
+                if 'done' in response_data and response_data['done']:
+                    break
+        
+        return full_response.strip()
+    except requests.RequestException as e:
+        print(f"Error communicating with Ollama: {e}")
+        return "Unable to analyze image at this time."
 
 
 
@@ -284,6 +319,8 @@ class TransparentOverlay(QMainWindow):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.check_timer)
         self.timer.start(60000)  # Check every minute
+        self.backend = "koboldcpp"  # Default backend
+        self.ollama_model = "minicpm-v"  # Default Ollama model
         self.initUI()
 
 
@@ -337,6 +374,11 @@ class TransparentOverlay(QMainWindow):
         clear_timer_button = QPushButton("Clear Timer", self)
         clear_timer_button.clicked.connect(self.clear_timer)
         self.button_layout.addWidget(clear_timer_button)
+
+        # Add new button for backend selection
+        select_backend_button = QPushButton("Select Backend", self)
+        select_backend_button.clicked.connect(self.show_backend_dialog)
+        self.button_layout.addWidget(select_backend_button)
         
         buttons = [
             ("Select Region", self.select_region),
@@ -840,6 +882,44 @@ class TransparentOverlay(QMainWindow):
                 self.show()  # Show the overlay again only if it was hidden
             self.analysis_worker.screenshot_taken.emit()
 
+    def show_backend_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select Backend")
+        layout = QVBoxLayout(dialog)
+
+        koboldcpp_radio = QRadioButton("KoboldCPP", dialog)
+        ollama_radio = QRadioButton("Ollama", dialog)
+        
+        if self.backend == "koboldcpp":
+            koboldcpp_radio.setChecked(True)
+        else:
+            ollama_radio.setChecked(True)
+
+        layout.addWidget(koboldcpp_radio)
+        layout.addWidget(ollama_radio)
+
+        # Add Ollama model selection
+        ollama_model_label = QLabel("Ollama Model:")
+        ollama_model_input = QLineEdit(self.ollama_model)
+        layout.addWidget(ollama_model_label)
+        layout.addWidget(ollama_model_input)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+
+        if dialog.exec_() == QDialog.Accepted:
+            if koboldcpp_radio.isChecked():
+                self.backend = "koboldcpp"
+            else:
+                self.backend = "ollama"
+                self.ollama_model = ollama_model_input.text()
+            self.update_text(f"Backend set to: {self.backend}")
+            if self.backend == "ollama":
+                self.update_text(f"Ollama model set to: {self.ollama_model}")
+            
+
 class QFlowLayout(QLayout):
     def __init__(self, parent=None, margin=0, spacing=-1):
         super(QFlowLayout, self).__init__(parent)
@@ -946,8 +1026,6 @@ class QFlowLayout(QLayout):
             return parent.spacing()
         
     
-           
-
 
 def capture_and_analyze(overlay):
     while True:
@@ -968,6 +1046,8 @@ def capture_and_analyze(overlay):
             description = analyze_image_with_koboldcpp(resized_image, overlay.system_prompt)
             overlay.update_text(description)
         time.sleep(5)
+
+
 
 
 def main():
