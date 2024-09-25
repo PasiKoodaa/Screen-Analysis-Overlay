@@ -1,6 +1,6 @@
 # Screen Analysis Overlay
 
-This application provides a transparent overlay for real-time image analysis using KoboldCPP or Ollama. It captures screenshots of a selected region or the entire screen and analyzes them using AI, providing descriptions and alerts based on user-defined conditions. Currently only Windows compatible.
+This application provides a transparent overlay for real-time image analysis using KoboldCPP or Ollama. It captures screenshots of a selected region or the entire screen and analyzes them using AI, providing descriptions and alerts based on user-defined conditions. Currently tested only on Windows, but might be also Linux-compatible.
 
 
 
