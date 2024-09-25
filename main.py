@@ -1,3 +1,4 @@
+
 import sys
 import time
 import pyautogui
@@ -17,11 +18,7 @@ from PyQt5.QtCore import Qt, QTimer, QPoint, QRect, QThread, QObject, pyqtSignal
 from PyQt5.QtGui import QFont, QPainter, QPen, QPixmap, QCursor, QColor
 import json
 from queue import Queue
-import win32gui
-import win32ui
-import win32con
-import win32api
-import subprocess
+
 
 # KoboldCPP server settings
 KOBOLDCPP_URL = "http://localhost:5001/api/v1/generate"
@@ -291,7 +288,6 @@ def analyze_image_with_ollama(image, prompt, model="llava"):
         return "Unable to analyze image at this time."
 
 
-
 class TransparentOverlay(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -322,7 +318,6 @@ class TransparentOverlay(QMainWindow):
         self.backend = "koboldcpp"  # Default backend
         self.ollama_model = "minicpm-v"  # Default Ollama model
         self.initUI()
-
 
         # Create a directory for saved screenshots
         self.screenshot_dir = "saved_screenshots"
@@ -830,28 +825,8 @@ class TransparentOverlay(QMainWindow):
                 right = self.capture_region.right() + screen_geometry.left()
                 bottom = self.capture_region.bottom() + screen_geometry.top()
 
-                # Use win32 API for screen capture
-                hwin = win32gui.GetDesktopWindow()
-                width = right - left
-                height = bottom - top
-
-                hwindc = win32gui.GetWindowDC(hwin)
-                srcdc = win32ui.CreateDCFromHandle(hwindc)
-                memdc = srcdc.CreateCompatibleDC()
-                bmp = win32ui.CreateBitmap()
-                bmp.CreateCompatibleBitmap(srcdc, width, height)
-                memdc.SelectObject(bmp)
-                memdc.BitBlt((0, 0), (width, height), srcdc, (left, top), win32con.SRCCOPY)
-
-                signedIntsArray = bmp.GetBitmapBits(True)
-                img = Image.frombytes("RGB", (width, height), signedIntsArray, "raw", "BGRX")
-
-                # Free resources
-                win32gui.DeleteObject(bmp.GetHandle())
-                memdc.DeleteDC()
-                srcdc.DeleteDC()
-                win32gui.ReleaseDC(hwin, hwindc)
-
+                # Use ImageGrab for screen capture
+                img = ImageGrab.grab(bbox=(left, top, right, bottom))
                 logging.info(f"Screenshot taken of selected region: {left},{top},{right},{bottom}")
             else:
                 img = ImageGrab.grab()
