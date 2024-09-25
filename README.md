@@ -45,8 +45,7 @@ https://github.com/user-attachments/assets/240f12f5-2197-4cf4-88d1-ba273b509393
 - pyautogui
 - Pillow
 - requests
-- pywin32
-
+ 
 ## Installation
 
 1. Clone this repository:
